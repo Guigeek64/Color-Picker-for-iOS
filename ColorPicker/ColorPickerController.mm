@@ -128,9 +128,7 @@
 }
 
 + (UIColor *)colorFromHexValue:(NSString *)hexValue {
-    UIColor *color = [UIColor blackColor];
-    
-    NSRange componentRange = NSMakeRange(HEXADECIMAL_RED_LOCATION, 
+    NSRange componentRange = NSMakeRange(HEXADECIMAL_RED_LOCATION,
                                          HEXADECIMAL_COMPONENT_LENGTH);
     NSString *redComponent = [hexValue substringWithRange:componentRange];
     
@@ -147,12 +145,10 @@
     [[NSScanner scannerWithString:greenComponent] scanHexInt:&green];
     [[NSScanner scannerWithString:blueComponent] scanHexInt:&blue];
     
-    color = [UIColor colorWithRed:red / COLOR_COMPONENT_SCALE_FACTOR
-                            green:green / COLOR_COMPONENT_SCALE_FACTOR
-                             blue:blue / COLOR_COMPONENT_SCALE_FACTOR
-                            alpha:1.0f];
-    
-    return color;
+    return [UIColor colorWithRed:red / COLOR_COMPONENT_SCALE_FACTOR
+                           green:green / COLOR_COMPONENT_SCALE_FACTOR
+                            blue:blue / COLOR_COMPONENT_SCALE_FACTOR
+                           alpha:1.0f];
 }
 
 + (BOOL)isValidHexValue:(NSString *)hexValue {
@@ -393,16 +389,23 @@
 
     labelRightEdge += LABEL_WIDTH + LABEL_MARGIN;
 
-    _colorView = [[UIView alloc] initWithFrame:CGRectZero];
-    _colorView.layer.cornerRadius = COLOR_VIEW_CORNER_RADIUS;
-    _colorView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    UIView *colorViewBG = [[UIView alloc] initWithFrame:CGRectZero];
+    colorViewBG.backgroundColor = [UIColor colorWithPatternImage:[UIImage imageNamed:@"alphaBG"]];
+    colorViewBG.clipsToBounds = YES;
+    colorViewBG.layer.cornerRadius = COLOR_VIEW_CORNER_RADIUS;
+    colorViewBG.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     CGFloat colorViewLeftEdge = labelRightEdge + DEFAULT_MARGIN;
-    _colorView.frame = CGRectMake(colorViewLeftEdge, 
-                                  DEFAULT_MARGIN, 
-                                  viewBounds.size.width - DEFAULT_MARGIN - colorViewLeftEdge, 
-                                  COLOR_VIEW_HEIGHT);
-    [backgroundView addSubview:_colorView];
+    colorViewBG.frame = CGRectMake(colorViewLeftEdge,
+                                   DEFAULT_MARGIN,
+                                   viewBounds.size.width - DEFAULT_MARGIN - colorViewLeftEdge,
+                                   COLOR_VIEW_HEIGHT);
+    _colorView = [[UIView alloc] initWithFrame:CGRectZero];
+    _colorView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    _colorView.frame = colorViewBG.bounds;
+    [colorViewBG addSubview:_colorView];
     [_colorView release];
+    [backgroundView addSubview:colorViewBG];
+    [colorViewBG release];
     
     CGFloat textFieldBottomEdge = DEFAULT_MARGIN + TEXT_FIELD_HEIGHT + LABEL_MARGIN;
     
@@ -509,7 +512,27 @@
     [backgroundView addSubview:_hexField];
     [_hexField release];
     
-    textFieldBottomEdge += TEXT_FIELD_HEIGHT + DEFAULT_MARGIN;
+
+    textFieldBottomEdge += TEXT_FIELD_HEIGHT + LABEL_MARGIN;
+    slider = [[UISlider alloc] init];
+    [slider addTarget:self action:@selector(setAlphaComponent) forControlEvents:UIControlEventValueChanged];
+    alphaLabel = [[UILabel alloc] init];
+    alphaLabel.backgroundColor = [UIColor clearColor];
+    alphaLabel.text = @"alpha: 100.00% "; //determine max size
+    [alphaLabel sizeToFit];
+    alphaLabel.frame = CGRectMake(2*DEFAULT_MARGIN,
+                                  textFieldBottomEdge + (slider.frame.size.height-alphaLabel.frame.size.height)/2,
+                                  alphaLabel.frame.size.width,
+                                  alphaLabel.frame.size.height);
+    slider.frame = CGRectMake(2*DEFAULT_MARGIN+alphaLabel.frame.size.width,
+                              textFieldBottomEdge,
+                              backgroundView.frame.size.width-alphaLabel.frame.size.width-4*DEFAULT_MARGIN,
+                              slider.frame.size.height);
+    slider.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [backgroundView addSubview:alphaLabel];
+    [backgroundView addSubview:slider];
+    textFieldBottomEdge += slider.frame.size.height + LABEL_MARGIN;
+    
     
     CGRect gradientFrame = CGRectMake(DEFAULT_MARGIN, 
                                       viewBounds.size.height - DEFAULT_MARGIN - GRADIENT_HEIGHT, 
@@ -645,8 +668,15 @@
 #pragma mark -
 #pragma mark Private Methods
 
+- (void)setAlphaComponent {
+    self.selectedColor = [self.selectedColor colorWithAlphaComponent:slider.value];
+}
+
 - (void)setColorValues {
     if (_colorView) {
+        slider.value = CGColorGetAlpha(_selectedColor.CGColor); //used when view is pulled
+        alphaLabel.text = [NSString stringWithFormat:@"alpha: %.2f%% ", slider.value*100];
+
         _colorView.backgroundColor = _selectedColor;
         
         RgbColor rgbColor = 
@@ -734,7 +764,7 @@
     self.selectedColor = [UIColor colorWithHue:hue
                                     saturation:saturation
                                     brightness:_hsvColor.brightness 
-                                         alpha:1.0f];
+                                         alpha:slider.value];
 }
 
 - (void)evaluateTouchForBrightness:(UITouch *)touch {
@@ -753,7 +783,7 @@
     self.selectedColor = [UIColor colorWithHue:_hsvColor.hue 
                                     saturation:_hsvColor.saturation
                                     brightness:brightness 
-                                         alpha:1.0f];
+                                         alpha:slider.value];
 }
 
 #pragma mark -
@@ -771,7 +801,7 @@
         NSString *hexadecimalColor = textField.text;
         if ([ColorPickerController isValidHexValue:hexadecimalColor]) {
             self.selectedColor = 
-                [ColorPickerController colorFromHexValue:hexadecimalColor];
+                [[ColorPickerController colorFromHexValue:hexadecimalColor] colorWithAlphaComponent:slider.value];
             [self moveSelectors];
         }
         else {
@@ -787,7 +817,7 @@
         self.selectedColor = [UIColor colorWithRed:redValue / COLOR_COMPONENT_SCALE_FACTOR
                                              green:greenValue / COLOR_COMPONENT_SCALE_FACTOR
                                               blue:blueValue / COLOR_COMPONENT_SCALE_FACTOR
-                                             alpha:1.0f];
+                                             alpha:slider.value];
         [self moveSelectors];
     }
     else {
@@ -797,7 +827,7 @@
         self.selectedColor = [UIColor colorWithHue:hueValue / COMPONENT_MAXIMUM_DEGREES
                                         saturation:saturationValue / COMPONENT_PERCENTAGE 
                                         brightness:brightnessValue / COMPONENT_PERCENTAGE
-                                             alpha:1.0f];
+                                             alpha:slider.value];
         [self moveSelectors];
     }
     
